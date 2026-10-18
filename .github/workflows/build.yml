@@ -15,48 +15,45 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Accept Android SDK Licenses
+        run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
       - name: Generate Complete Android Project & Code
         run: |
-          # 1. प्रोजेक्ट के सारे फोल्डर्स अपने आप बनाएं
           mkdir -p app/src/main/java/com/tinder/autobot
           mkdir -p app/src/main/res/xml
 
-          # 2. settings.gradle बनाएं
           cat << 'EOF' > settings.gradle
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
           rootProject.name = "TinderAutoBot"
           include ':app'
           EOF
 
-          # 3. Root build.gradle बनाएं
           cat << 'EOF' > build.gradle
-          buildscript {
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-              dependencies {
-                  classpath "com.android.tools.build:gradle:8.1.0"
-                  classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.0"
-              }
-          }
-          allprojects {
-              repositories {
-                  google()
-                  mavenCentral()
-              }
+          plugins {
+              id 'com.android.application' version '8.2.0' apply false
+              id 'org.jetbrains.kotlin.android' version '1.9.20' apply false
           }
           EOF
 
-          # 4. gradle.properties बनाएं
           cat << 'EOF' > gradle.properties
           android.useAndroidX=true
           org.gradle.jvmargs=-Xmx2048m
           EOF
 
-          # 5. App build.gradle बनाएं
           cat << 'EOF' > app/build.gradle
           plugins {
               id 'com.android.application'
@@ -83,7 +80,6 @@ jobs:
           dependencies {}
           EOF
 
-          # 6. AndroidManifest.xml बनाएं
           cat << 'EOF' > app/src/main/AndroidManifest.xml
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
@@ -114,7 +110,6 @@ jobs:
           </manifest>
           EOF
 
-          # 7. Accessibility Config बनाएं
           cat << 'EOF' > app/src/main/res/xml/accessibility_config.xml
           <?xml version="1.0" encoding="utf-8"?>
           <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
@@ -126,7 +121,6 @@ jobs:
               android:notificationTimeout="100" />
           EOF
 
-          # 8. पूरा Kotlin Code (MainActivity + Floating Button + Auto Bot) एक ही फाइल में बनाएं
           cat << 'EOF' > app/src/main/java/com/tinder/autobot/MainActivity.kt
           package com.tinder.autobot
 
@@ -261,7 +255,6 @@ jobs:
                       return
                   }
 
-                  // 1. चेक करें कि क्या हम चैट स्क्रीन के अंदर हैं (Message बॉक्स ढूँढें)
                   val editNode = findEditText(root)
                   if (editNode != null) {
                       val msg = getRandomMessage()
@@ -270,14 +263,12 @@ jobs:
                       editNode.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
                       editNode.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
 
-                      // 1.5 सेकंड बाद Send पर क्लिक करें
                       handler.postDelayed({
                           if (!isRunning) return@postDelayed
                           val currentRoot = rootInActiveWindow
                           val sendNode = currentRoot?.let { findNodeByText(it, "Send") ?: findNodeByText(it, "SEND") }
                           sendNode?.performAction(AccessibilityNodeInfo.ACTION_CLICK)
 
-                          // भेजने के 2 सेकंड बाद वापस चैट लिस्ट में आएं और थोड़ा स्क्रोल करें
                           handler.postDelayed({
                               if (!isRunning) return@postDelayed
                               performGlobalAction(GLOBAL_ACTION_BACK)
@@ -290,13 +281,11 @@ jobs:
                       return
                   }
 
-                  // 2. अगर हम चैट लिस्ट में हैं -> "Your turn" या किसी प्रोफाइल पर क्लिक करें
                   val yourTurnNode = findNodeByText(root, "Your turn")
                   if (yourTurnNode != null) {
                       clickClickableParent(yourTurnNode)
                       scheduleNext(2500)
                   } else {
-                      // अगर सामने कोई प्रोफाइल पर क्लिक करना हो (स्क्रीन के बीच में टैप + स्क्रोल)
                       tapOnProfileAndScroll()
                       scheduleNext(3000)
                   }
@@ -311,7 +300,6 @@ jobs:
                       }
                       current = current.parent
                   }
-                  // अगर क्लिक न हो तो टैप जेस्चर का इस्तेमाल करें
                   tapScreen(500f, 700f)
               }
 
@@ -363,10 +351,10 @@ jobs:
           }
           EOF
 
-      - name: Install Gradle & Build APK
+      - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
         with:
-          gradle-version: '8.2'
+          gradle-version: '8.5'
 
       - name: Assemble Debug APK
         run: gradle assembleDebug
